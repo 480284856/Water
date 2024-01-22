@@ -3,7 +3,7 @@
 1. 模型配置参数中有两个关于cache kv的参数，这个参数最好不要默认，否则会额外占用非常大的显存
 2. 所有的示例代码需要放在一个.py文件中，并使用torchrun运行。运行格式为：
 
-    ```torchrun --nproc_node 【NUM GPU】 xx.py```
+    ```torchrun --nproc-per-node 【NUM GPU】 xx.py```
 3. 默认使用所有的GPU进行TP。
 
 ## LLaMA2
