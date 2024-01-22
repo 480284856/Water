@@ -15,7 +15,7 @@ elif torch.backends.mps.is_available():
 else:
     device = "cpu"
 
-def load_llama(model_args: ModelArgs)->Transformer:
+def load_llama(model_args: ModelArgs, model_parallel_size=None, pipeline_length=1)->Transformer:
     if not torch.distributed.is_initialized():
         if device == "cuda":
             torch.distributed.init_process_group("nccl")
@@ -24,7 +24,7 @@ def load_llama(model_args: ModelArgs)->Transformer:
     if not model_parallel_is_initialized():
         if model_parallel_size is None:
             model_parallel_size = int(os.environ.get("WORLD_SIZE", 1))
-        initialize_model_parallel(model_parallel_size)
+        initialize_model_parallel(model_parallel_size, pipeline_length)
 
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     if device == "cuda":
