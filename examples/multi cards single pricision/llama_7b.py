@@ -21,7 +21,7 @@ def main():
         n_heads=32,
         vocab_size=32000
     )
-    llama_7b=load_llama(model_args_7b)
+    llama_7b=load_llama(model_args_7b, benchmark_config.tp_size, benchmark_config.pipeline_size)
 
     benchmarkObject=LLaMABenchmark(
         model=llama_7b,
