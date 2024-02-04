@@ -198,7 +198,7 @@ class LlamaAttention(LlamaAttention):
 
         return attn_output, attn_weights, past_key_value
 
-class LlamaDecoderLayer(nn.Module):
+class LlamaDecoderLayer(LlamaDecoderLayer):
     def __init__(self, config: LlamaConfig, layer_idx: int):
         super().__init__(config, layer_idx)
 
@@ -206,7 +206,7 @@ class LlamaDecoderLayer(nn.Module):
 
         self.mlp = LlamaMLP(config)
 
-class LLaMA(LlamaModel):
+class LlamaModel(LlamaModel):
     def __init__(self, config: LlamaConfig):
         super().__init__(config)
         del self.embed_tokens
