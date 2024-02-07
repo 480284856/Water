@@ -5,7 +5,7 @@ import argparse
 import torch.distributed as dist
 from dataclasses import dataclass
 from transformers import LlamaConfig
-from models.llama_7b import env_initialization,LlamaModel
+from d_hugging_face.models.llama import env_initialization,LlamaModel
 
 @dataclass
 class LLaMABenchmarkConfig:
@@ -80,8 +80,6 @@ class LLaMABenchmark():
             self._generate()
             warm_up_times-=1
 
-       
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path", type=str, required=True)
@@ -120,5 +118,5 @@ if __name__ == "__main__":
 
 
 
-
+    
 
