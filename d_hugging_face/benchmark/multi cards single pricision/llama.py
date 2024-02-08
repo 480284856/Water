@@ -26,11 +26,11 @@ class LLaMABenchmark():
         self.model=model
         self.benchmark_config=benchmark_config
         
-        world_size=os.environ.get("WORLD_SIZE", 1)
+        world_size=int(os.environ.get("WORLD_SIZE", 1))
         assert benchmark_config.dp_size*benchmark_config.tp_size*benchmark_config.pipeline_size == world_size
         
         self.speeds=[torch.tensor(0.0) for _ in range(world_size)]
-        self.local_rank=os.environ.get("LOCAL_RANK", 0)
+        self.local_rank=int(os.environ.get("LOCAL_RANK", 0))
 
     def launch_benchmark(self,):
         total_time_used=0
@@ -107,7 +107,7 @@ def main():
     )
 
     benchmarkObject.launch_benchmark()
-    print("llama_7b: {.3f}token/s".format(benchmarkObject.get_benchmark_result()))
+    print("llama_7b: {:3f}token/s".format(benchmarkObject.get_benchmark_result()))
 
 if __name__ == "__main__":
     main()
