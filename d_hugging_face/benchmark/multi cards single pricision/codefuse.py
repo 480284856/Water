@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import argparse
 import torch
@@ -7,7 +8,9 @@ from typing import Tuple
 from transformers import (
     AutoTokenizer, 
     AutoModelForCausalLM,
-    LlamaForCausalLM
+    LlamaForCausalLM,
+    LlamaForCausalLM,
+    LlamaTokenizer
 )
 
 @dataclass
@@ -26,16 +29,21 @@ class LLaMABenchmarkConfig:
 
 class LLaMABenchmark():
     def __init__(self, mode_name_or_path, benchmark_config: LLaMABenchmarkConfig) -> None:
-        self.tokenizer, self.model = self.env_initialization(mode_name_or_path)
-
         self.benchmark_config=benchmark_config
         self.device=self.benchmark_config.device if self.benchmark_config.device=='cpu' else f'{self.benchmark_config.device}:{int(os.environ.get("LOCAL_RANK", 0))}'
+
+        self.tokenizer, self.model = self.env_initialization(mode_name_or_path)
 
         world_size=int(os.environ.get("WORLD_SIZE", 1))
         assert benchmark_config.dp_size*benchmark_config.tp_size*benchmark_config.pipeline_size == world_size
 
-        self.speeds=[torch.tensor(0.0) for _ in range(world_size)]
+        self.speeds=[torch.tensor(0.0).cuda() for _ in range(world_size)]
         self.local_rank=int(os.environ.get("LOCAL_RANK", 0))
+
+        HUMAN_ROLE_START_TAG = "<|role_start|>human<|role_end|>"
+        BOT_ROLE_START_TAG = "<|role_start|>bot<|role_end|>"
+
+        self.prompt = f"{HUMAN_ROLE_START_TAG}write a python function of quick sort.{BOT_ROLE_START_TAG}" 
 
     def launch_benchmark(self,):
         total_time_used=0
@@ -46,7 +54,7 @@ class LLaMABenchmark():
             total_time_used+=time_used
 
         token_num=self.benchmark_config.max_output_length*self.benchmark_config.benchmark_times
-        self.speed=torch.tensor(token_num/total_time_used)
+        self.speed=torch.tensor(token_num/total_time_used).cuda()
     
     def get_benchmark_result(self,):
         dist.all_gather(self.speeds, self.speed)
@@ -64,8 +72,9 @@ class LLaMABenchmark():
     def _generate(self,):
         time_used=0
         
-        input_ids=torch.ones(self.benchmark_config.batch_size, self.benchmark_config.max_input_length, dtype=torch.long).to(self.device)
-        attention_mask=1
+        inputs = self.tokenizer(self.prompt, return_tensors='pt', padding=True, add_special_tokens=False, max_length=self.benchmark_config.max_input_length, truncation=True).to("cuda")
+        input_ids=inputs['input_ids']
+        attention_mask=inputs['attention_mask']
         while(True):
             with torch.no_grad():
                 start=time.perf_counter_ns()
@@ -86,9 +95,22 @@ class LLaMABenchmark():
             self._generate()
             warm_up_times-=1
 
-    def env_initialization(self, mode_name_or_path) -> Tuple[AutoTokenizer, LlamaForCausalLM]:
+    def env_initialization(self, mode_name_or_path, benchmark_config) -> Tuple[LlamaTokenizer, LlamaForCausalLM]:
+        if not torch.distributed.is_initialized():
+            if benchmark_config.device == "cuda":
+                torch.distributed.init_process_group("nccl")
+            else:
+                torch.distributed.init_process_group("gloo")
+
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
-        torch.cuda.set_device(local_rank)
+        if benchmark_config.device == "cuda":
+            torch.cuda.set_device(local_rank)
+
+        # seed must be the same in all processes
+        torch.manual_seed(1)
+
+        if local_rank > 0:
+            sys.stdout = open(os.devnull, "w")        
 
         tokenizer = AutoTokenizer.from_pretrained(mode_name_or_path, trust_remote_code=True, use_fast=False, legacy=False)
         tokenizer.padding_side = "left"
@@ -97,19 +119,14 @@ class LLaMABenchmark():
         # try 4bit loading if cuda memory not enough
         model = AutoModelForCausalLM.from_pretrained(mode_name_or_path,
                                                     trust_remote_code=True,
-                                                    load_in_4bit=False,
-                                                    device_map="auto",
+                                                    load_in_4bit=True,
                                                     torch_dtype=torch.bfloat16)
         model.eval()
 
         return tokenizer, model
 
     def generate(self,):
-        HUMAN_ROLE_START_TAG = "<|role_start|>human<|role_end|>"
-        BOT_ROLE_START_TAG = "<|role_start|>bot<|role_end|>"
-
-        text = f"{HUMAN_ROLE_START_TAG}write a python function of quick sort.{BOT_ROLE_START_TAG}" 
-        inputs = self.tokenizer(text, return_tensors='pt', padding=True, add_special_tokens=False).to("cuda")
+        inputs = self.tokenizer(self.prompt, return_tensors='pt', padding=True, add_special_tokens=False).to("cuda")
         
         outputs = self.model.generate(
                 inputs=inputs["input_ids"],
