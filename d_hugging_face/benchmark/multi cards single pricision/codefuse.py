@@ -3,6 +3,7 @@ import sys
 import time
 import argparse
 import torch
+import torch.distributed as dist
 from dataclasses import dataclass
 from typing import Tuple
 from transformers import (
