@@ -163,7 +163,7 @@ def main():
     )
 
     benchmarkObject.launch_benchmark()
-    print("llama_7b: {:3f}token/s".format(benchmarkObject.get_benchmark_result()))
+    print("codefuse: {:3f}token/s".format(benchmarkObject.get_benchmark_result()))
 
 if __name__ == "__main__":
     main()
