@@ -55,7 +55,7 @@ class LLaMABenchmark():
             time_used=self._generate()
             total_time_used+=time_used
 
-        token_num=self.benchmark_config.max_output_length*self.benchmark_config.benchmark_times
+        token_num=self.benchmark_config.max_output_length*self.benchmark_config.benchmark_times*self.benchmark_config.batch_size
         self.speed=torch.tensor(token_num/total_time_used).cuda()
     
     def get_benchmark_result(self,):
